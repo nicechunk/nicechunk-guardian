@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+build/
+.env
+.env.*
+.auth/
+.deploy/
+.gh-config/
+.anchor/
+*.log
+.DS_Store
