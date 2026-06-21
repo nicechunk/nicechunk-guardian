@@ -162,7 +162,6 @@ std::string GuardianState::render_tui(uint64_t t_ms) {
 
   int detail = content_top + 12;
   int detail_w = left_w - 4;
-  int detail_text_w = detail_w - 2;
   out << at(detail, 2) << kMagenta << "DATA PANEL" << kReset;
   detail += 2;
 
@@ -172,16 +171,16 @@ std::string GuardianState::render_tui(uint64_t t_ms) {
 
   if (tui_section_ == 0) {
     write_detail("Register URL: " + cfg_.public_url);
-    write_detail(stat_line("Connections", std::to_string(metrics_.connections), detail_text_w));
-    write_detail(stat_line("Players", std::to_string(metrics_.players), detail_text_w));
-    write_detail(stat_line("Active chunks", std::to_string(metrics_.active_chunks), detail_text_w));
-    write_detail(stat_line("CPU", std::to_string((int)rates.cpu_percent) + "%", detail_text_w));
-    write_detail(stat_line("RSS", std::to_string(rates.memory_usage_mb) + " MB", detail_text_w));
-    write_detail(stat_line("Inbound", bytes_per_sec(rates.bytes_in_per_sec), detail_text_w));
-    write_detail(stat_line("Outbound", bytes_per_sec(rates.bytes_out_per_sec), detail_text_w));
-    write_detail(stat_line("Moves/s", std::to_string(rates.move_in_per_sec), detail_text_w));
-    write_detail(stat_line("Digs/s", std::to_string(rates.dig_in_per_sec), detail_text_w));
-    write_detail(stat_line("Backpressure", std::to_string(metrics_.backpressure_connections), detail_text_w));
+    write_detail(stat_line("Connections", std::to_string(metrics_.connections), detail_w));
+    write_detail(stat_line("Players", std::to_string(metrics_.players), detail_w));
+    write_detail(stat_line("Active chunks", std::to_string(metrics_.active_chunks), detail_w));
+    write_detail(stat_line("CPU", std::to_string((int)rates.cpu_percent) + "%", detail_w));
+    write_detail(stat_line("RSS", std::to_string(rates.memory_usage_mb) + " MB", detail_w));
+    write_detail(stat_line("Inbound", bytes_per_sec(rates.bytes_in_per_sec), detail_w));
+    write_detail(stat_line("Outbound", bytes_per_sec(rates.bytes_out_per_sec), detail_w));
+    write_detail(stat_line("Moves/s", std::to_string(rates.move_in_per_sec), detail_w));
+    write_detail(stat_line("Digs/s", std::to_string(rates.dig_in_per_sec), detail_w));
+    write_detail(stat_line("Backpressure", std::to_string(metrics_.backpressure_connections), detail_w));
   } else if (tui_section_ == 1) {
     uint32_t idx = 0;
     for (const auto &entry : players_) {
