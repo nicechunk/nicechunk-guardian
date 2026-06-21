@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Realtime Guardian loop</title>
+  <desc id="desc">A loop diagram showing Guardian handshake, chunk room assignment, movement batching, AOI publishing, dig events, and operational visibility.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070d14"/>
+      <stop offset="1" stop-color="#15110c"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#8fdcff"/>
+    </marker>
+    <style>
+      .label{font:800 12px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:.16em;fill:#90ff1a}
+      .title{font:850 42px Inter,ui-sans-serif,system-ui,sans-serif;fill:#f3f8ff}
+      .copy{font:500 17px Inter,ui-sans-serif,system-ui,sans-serif;fill:#b8c7d4}
+      .node{fill:rgba(255,255,255,.06);stroke:rgba(255,255,255,.16);stroke-width:1.2;rx:18}
+      .head{font:800 18px Inter,ui-sans-serif,system-ui,sans-serif;fill:#f3f8ff}
+      .small{font:600 13px Inter,ui-sans-serif,system-ui,sans-serif;fill:#bdd0df}
+      .mono{font:750 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#f7d98f}
+      .line{stroke:#8fdcff;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <circle cx="640" cy="402" r="244" fill="none" stroke="rgba(143,220,255,.24)" stroke-width="18"/>
+  <text x="70" y="78" class="label">REALTIME GUARDIAN SERVICE</text>
+  <text x="70" y="132" class="title">Low-latency world traffic stays off-chain.</text>
+  <text x="70" y="168" class="copy">Guardian accepts compact binary WebSocket messages, assigns players to rooms, and publishes only to relevant AOI chunks.</text>
+
+  <g transform="translate(508 238)"><rect class="node" width="264" height="108"/><text x="24" y="40" class="head">HELLO handshake</text><text x="24" y="72" class="mono">52-byte client hello</text></g>
+  <g transform="translate(816 318)"><rect class="node" width="264" height="108"/><text x="24" y="40" class="head">Chunk room</text><text x="24" y="72" class="small">region bounds and local IDs</text></g>
+  <g transform="translate(724 510)"><rect class="node" width="286" height="108"/><text x="24" y="40" class="head">Move batching</text><text x="24" y="72" class="mono">MSG_MOVE_BATCH</text></g>
+  <g transform="translate(270 510)"><rect class="node" width="286" height="108"/><text x="24" y="40" class="head">AOI publish</text><text x="24" y="72" class="small">radius-based chunk topics</text></g>
+  <g transform="translate(188 318)"><rect class="node" width="264" height="108"/><text x="24" y="40" class="head">Dig and chat</text><text x="24" y="72" class="small">sequenced gameplay events</text></g>
+  <g transform="translate(526 382)"><rect class="node" width="228" height="100"/><text x="34" y="40" class="head">TUI metrics</text><text x="34" y="70" class="small">rates, memory, logs</text></g>
+  <path class="line" d="M772 292 C838 292 868 306 900 324"/>
+  <path class="line" d="M946 426 C956 466 936 496 902 512"/>
+  <path class="line" d="M724 564 H578"/>
+  <path class="line" d="M356 510 C314 474 294 448 284 426"/>
+  <path class="line" d="M452 340 C494 310 526 296 552 292"/>
+  <path class="line" d="M452 374 C492 400 514 424 536 448"/>
+  <path class="line" d="M816 374 C750 398 714 424 688 448"/>
+</svg>

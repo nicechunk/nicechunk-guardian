@@ -12,6 +12,14 @@ The service is intentionally separate from the browser client and the chain regi
 
 The C++ codebase is small enough for direct systems-level review while still supporting practical deployment concerns such as configuration files, protocol tests, and local client scripts.
 
+## Realtime Loop
+
+![Realtime Guardian loop](docs/diagrams/realtime-guardian-loop.svg)
+
+Guardian is the low-latency half of the world protocol. A client starts with a fixed-size `HELLO`, receives a local player ID and region bounds, then sends compact movement, dig, and chat messages. The service assigns players to chunk rooms and publishes updates only to the area of interest around each room.
+
+The protocol is intentionally small: fixed message tags, explicit payload sizes, bounded chat bytes, dig sequence checks, and move batching. That shape keeps realtime traffic cheap to process and easy to test. Persistent ownership, staking, and proof submission remain outside this server and belong to the Solana program layer.
+
 ## System Principles
 
 - Realtime traffic stays off-chain: movement and chat use a compact binary WebSocket protocol, while persistent ownership and proofs belong to Solana programs.
