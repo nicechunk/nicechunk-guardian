@@ -28,6 +28,32 @@ Guardian's wire format is designed for predictability. Handshake, movement, dig,
 
 The service should preserve that property as features grow. New realtime features should justify their byte shape, payload limit, rate-limit behavior, and browser client compatibility before they become part of the protocol.
 
+## Session Ownership Flow
+
+![Guardian session ownership flow](docs/diagrams/session-ownership-flow.svg)
+
+Guardian identity is intentionally lightweight. The server receives wallet bytes in the hello frame, derives indexes that help manage duplicate sessions, and keeps room membership tied to chunk coordinates. That is enough for realtime coordination without pretending the WebSocket server owns player assets.
+
+As the protocol expands, new message types should be evaluated against this boundary: can the server process the frame cheaply, rate-limit it, and recover from disconnects without becoming a hidden settlement layer?
+
+## TUI Dashboard
+
+![Guardian terminal dashboard](docs/screenshots/tui-dashboard.png)
+
+Guardian ships with a terminal user interface rather than a graphical desktop GUI. The TUI is enabled automatically when the process runs in an interactive terminal and `enable_tui` is true. It is disabled for non-interactive service environments with `--no-tui`, where the process falls back to periodic stats logging.
+
+The dashboard is organized around operational questions. The header shows node identity, listen address, transport mode, service-region center, service radius, AOI width, and public endpoint. The left command deck exposes five sections: Overview, Online Players, Resource Mining, Item Creation, and Chunk Rooms. The data panel shows live counters and selected-section detail. The right event log is bounded by `tui_log_capacity`, so the dashboard remains useful during long-running sessions without unbounded memory growth.
+
+The important design point is authority separation. The TUI can show connected players, active rooms, move and dig rates, duplicate-wallet retirement, rejected protocol actions, and backpressure signals. It does not make Guardian an authoritative game server. It is an operator visibility layer for a realtime relay whose final ownership, resource settlement, and asset state remain outside the process.
+
+## TUI Observability Loop
+
+![Guardian TUI observability loop](docs/diagrams/tui-observability-loop.svg)
+
+The TUI is driven by the same runtime state used by the relay. WebSocket events update `Metrics`, room membership, player maps, and bounded log entries. The ticker refreshes the dashboard at `tui_refresh_hz`, drains keyboard commands, applies section or row navigation, and renders the screen through `GuardianState::render_tui()`.
+
+That makes the TUI a low-risk operational surface. It reads and presents relay state, but it does not participate in protocol validation, signing, registry updates, or settlement. Operators can use it to verify that the node is accepting players, publishing AOI-scoped traffic, rejecting invalid DIG requests, and staying within backpressure limits.
+
 ## System Principles
 
 - Realtime traffic stays off-chain: movement and chat use a compact binary WebSocket protocol, while persistent ownership and proofs belong to Solana programs.

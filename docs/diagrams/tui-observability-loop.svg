@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Guardian TUI observability loop</title>
+  <desc id="desc">A diagram showing how Guardian runtime events, metrics, TUI input, and bounded logs feed the terminal dashboard without becoming settlement logic.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#060b10"/>
+      <stop offset="1" stop-color="#11190d"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#8fdcff"/>
+    </marker>
+    <style>
+      .label{font:800 12px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:.16em;fill:#90ff1a}
+      .title{font:850 40px Inter,ui-sans-serif,system-ui,sans-serif;fill:#f3f8ff}
+      .copy{font:500 17px Inter,ui-sans-serif,system-ui,sans-serif;fill:#b8c7d4}
+      .card{fill:rgba(255,255,255,.06);stroke:rgba(255,255,255,.16);stroke-width:1.2;rx:18}
+      .head{font:800 18px Inter,ui-sans-serif,system-ui,sans-serif;fill:#f3f8ff}
+      .small{font:600 13px Inter,ui-sans-serif,system-ui,sans-serif;fill:#bdd0df}
+      .mono{font:750 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#f7d98f}
+      .line{stroke:#8fdcff;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <circle cx="1080" cy="120" r="260" fill="#83ff00" opacity=".075"/>
+  <circle cx="210" cy="610" r="280" fill="#00c2ff" opacity=".075"/>
+  <text x="70" y="78" class="label">TERMINAL OBSERVABILITY</text>
+  <text x="70" y="132" class="title">The TUI makes relay state inspectable.</text>
+  <text x="70" y="168" class="copy">Guardian exposes live node health, room state, event logs, and operator navigation without changing protocol authority.</text>
+
+  <g transform="translate(70 248)">
+    <rect class="card" width="230" height="238"/>
+    <text x="24" y="42" class="head">Runtime events</text>
+    <text x="24" y="80" class="small">HELLO accepted</text>
+    <text x="24" y="110" class="small">MOVE batches</text>
+    <text x="24" y="140" class="small">DIG validation</text>
+    <text x="24" y="170" class="small">duplicate wallet retire</text>
+    <text x="24" y="204" class="mono">add_log()</text>
+  </g>
+  <path class="line" d="M300 368 H360"/>
+  <g transform="translate(382 248)">
+    <rect class="card" width="230" height="238"/>
+    <text x="24" y="42" class="head">Metrics model</text>
+    <text x="24" y="80" class="small">connections</text>
+    <text x="24" y="110" class="small">players</text>
+    <text x="24" y="140" class="small">active chunks</text>
+    <text x="24" y="170" class="small">bytes and rates</text>
+    <text x="24" y="204" class="mono">update_rates()</text>
+  </g>
+  <path class="line" d="M612 368 H672"/>
+  <g transform="translate(694 248)">
+    <rect class="card" width="230" height="238"/>
+    <text x="24" y="42" class="head">TUI input</text>
+    <text x="24" y="80" class="small">1-5 sections</text>
+    <text x="24" y="110" class="small">Tab next panel</text>
+    <text x="24" y="140" class="small">j/k rows</text>
+    <text x="24" y="170" class="small">arrow navigation</text>
+    <text x="24" y="204" class="mono">apply_tui_command()</text>
+  </g>
+  <path class="line" d="M924 368 H984"/>
+  <g transform="translate(1006 248)">
+    <rect class="card" width="204" height="238"/>
+    <text x="24" y="42" class="head">Dashboard</text>
+    <text x="24" y="80" class="small">command deck</text>
+    <text x="24" y="110" class="small">data panel</text>
+    <text x="24" y="140" class="small">bounded event log</text>
+    <text x="24" y="170" class="small">relay warning</text>
+    <text x="24" y="204" class="mono">render_tui()</text>
+  </g>
+
+  <text x="172" y="626" class="copy">The dashboard helps operators observe routing and health; final ownership and settlement remain outside the Guardian process.</text>
+</svg>

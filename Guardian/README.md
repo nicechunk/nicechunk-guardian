@@ -57,6 +57,10 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUWS_SOURCE_DIR=/path/to/uWebSoc
 
 Interactive terminals show the built-in cyberpunk TUI by default. It uses bounded in-memory log history and refreshes at `tui_refresh_hz`, so it does not grow over time.
 
+![Guardian terminal dashboard](../docs/screenshots/tui-dashboard.png)
+
+The TUI is an operator dashboard for the realtime relay. It shows the Guardian identity, listen endpoint, public endpoint, service-region center, service radius, AOI width, live player counters, traffic rates, backpressure count, selected section detail, and bounded event log. It is intentionally observational: it does not mint assets, sign transactions, settle resources, or decide final world state.
+
 TUI controls:
 
 - `1-5`: select Overview, Online Players, Resource Mining, Item Creation, Chunk Rooms
