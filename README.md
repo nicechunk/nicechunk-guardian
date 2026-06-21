@@ -20,6 +20,14 @@ Guardian is the low-latency half of the world protocol. A client starts with a f
 
 The protocol is intentionally small: fixed message tags, explicit payload sizes, bounded chat bytes, dig sequence checks, and move batching. That shape keeps realtime traffic cheap to process and easy to test. Persistent ownership, staking, and proof submission remain outside this server and belong to the Solana program layer.
 
+## Binary Protocol Frame
+
+![Guardian binary protocol frame](docs/diagrams/binary-protocol-frame.svg)
+
+Guardian's wire format is designed for predictability. Handshake, movement, dig, join, leave, ping, and pong messages use fixed-size frames. Chat is variable-length, but it is capped and has an explicit header. That makes rate limits, fuzz tests, and compatibility checks much simpler than a free-form JSON stream.
+
+The service should preserve that property as features grow. New realtime features should justify their byte shape, payload limit, rate-limit behavior, and browser client compatibility before they become part of the protocol.
+
 ## System Principles
 
 - Realtime traffic stays off-chain: movement and chat use a compact binary WebSocket protocol, while persistent ownership and proofs belong to Solana programs.
