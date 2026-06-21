@@ -67,6 +67,22 @@ TUI controls:
 - `Tab`: next section
 - `j/k` or arrow up/down: move the selected row in list views
 
+TUI sections:
+
+- `Overview`: node health summary. Shows registration URL, connection count, active players, active chunk rooms, CPU estimate, RSS memory, inbound throughput, outbound throughput, moves per second, digs per second, and backpressure count.
+- `Online Players`: temporary relay-side player list. Shows local player IDs, chunk coordinates, and pose values for currently connected players. This is useful for debugging movement and room placement, not for proving ownership.
+- `Resource Mining`: DIG relay view. Shows total DIG events and DIG events per second, with an explicit reminder that Guardian only relays mining events and does not settle final resources.
+- `Item Creation`: reserved view. The current protocol does not mint items or create final inventory state, so this section documents that item authority remains outside Guardian.
+- `Chunk Rooms`: active room view. Shows chunk coordinates, player counts, pub/sub topic, and selected local chunk index so operators can verify that AOI traffic is scoped to rooms rather than the full service region.
+
+TUI fixed regions:
+
+- Header: Guardian ID, listen address, WebSocket path, TLS/plain mode, public URL, service-region center, service radius, and AOI width.
+- Command Deck: selectable section list and keyboard navigation hints.
+- Data Panel: selected-section details derived from `Metrics`, player maps, and chunk-room state.
+- Event Log: bounded rolling log capped by `tui_log_capacity`; useful for live operations, not a permanent audit store.
+- Footer: reminds operators that Guardian is a communication relay and not final settlement.
+
 Disable TUI for systemd, logs, or benchmarks:
 
 ```bash

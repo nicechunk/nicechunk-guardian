@@ -46,6 +46,26 @@ The dashboard is organized around operational questions. The header shows node i
 
 The important design point is authority separation. The TUI can show connected players, active rooms, move and dig rates, duplicate-wallet retirement, rejected protocol actions, and backpressure signals. It does not make Guardian an authoritative game server. It is an operator visibility layer for a realtime relay whose final ownership, resource settlement, and asset state remain outside the process.
 
+## TUI Function Reference
+
+The TUI has three fixed regions: the header, the left command/data panel, and the right event log. The header identifies the node currently running: Guardian ID, listen host, listen port, WebSocket path, TLS mode, public URL, region center, service radius, and AOI width. This lets an operator confirm that the process is serving the same endpoint and region that will be published through the Guardian registry.
+
+The command deck is the navigation surface. `1-5` selects a section directly, `Tab` advances to the next section, and `j/k` or arrow up/down moves the selected row inside list-style sections. The TUI input thread stores bounded commands and the main loop applies them through `apply_tui_command()`, so keyboard interaction changes only the selected view. It does not alter protocol routing, player ownership, or chain state.
+
+The `Overview` section is the node health view. It shows the public registration URL, current connection count, active player count, active chunk-room count, CPU estimate, resident memory, inbound throughput, outbound throughput, move rate, dig rate, and backpressure count. This is the first screen an operator should inspect after starting the relay because it answers whether the node is accepting traffic and whether clients are pushing the process toward network pressure.
+
+The `Online Players` section lists active players known to the relay. Each row includes the local player ID, current chunk coordinate, and fixed-point pose values. This is intentionally local and temporary state. It is useful for debugging room assignment, duplicate wallet retirement, and movement visibility, but it is not a player ownership ledger.
+
+The `Resource Mining` section summarizes DIG traffic. It shows total DIG events, DIG events per second, and a reminder that Guardian only relays mining events. Final resource ownership and settlement remain Solana responsibilities. This section exists so operators can see whether mining traffic is flowing and whether validation failures appear in the event log.
+
+The `Item Creation` section is reserved. The current Guardian protocol does not mint items or create final inventory state, so the TUI explicitly says that item creation is not active. Keeping the placeholder visible prevents future contributors from quietly treating realtime relay messages as asset authority.
+
+The `Chunk Rooms` section lists active chunk rooms sorted by player count. A selected room shows its global chunk coordinate, player count, topic, and local chunk index. This view is the fastest way to verify AOI behavior: players should create rooms near the configured service region, and traffic should stay scoped to chunk topics instead of broadcasting across the whole region.
+
+The `Event Log` records bounded operational events such as boot, public endpoint selection, listen success, player connection, chunk transition, duplicate wallet retirement, rejected HELLO, rejected DIG, server-full rejection, and out-of-range failures. It is a rolling in-memory log capped by `tui_log_capacity`; the TUI is meant for live inspection, not permanent audit storage.
+
+For non-interactive service environments, `--no-tui` disables the dashboard and the process prints periodic stats instead. That mode is better for systemd, Docker logs, benchmarks, and remote process managers where ANSI cursor control would make logs harder to read.
+
 ## TUI Observability Loop
 
 ![Guardian TUI observability loop](docs/diagrams/tui-observability-loop.svg)
