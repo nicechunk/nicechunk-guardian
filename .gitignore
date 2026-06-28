@@ -20,6 +20,7 @@ hosts.yml
 known_hosts
 id_rsa
 id_ed25519
+*keypair*.json
 *.pem
 *.key
 *.p12
