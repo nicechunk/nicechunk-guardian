@@ -1,0 +1,21 @@
+# nicechunk-guardian review ownership.
+# This split repository is generated from the main NiceChunk working tree.
+
+* @nicechunk
+
+/.github/ @nicechunk
+/README.md @nicechunk
+/SECURITY.md @nicechunk
+/CONTRIBUTING.md @nicechunk
+/SUPPORT.md @nicechunk
+/CODE_OF_CONDUCT.md @nicechunk
+
+# High-risk generated surfaces remain owned by the project account.
+/programs/ @nicechunk
+/sdk/ @nicechunk
+/src/ @nicechunk
+/public/ @nicechunk
+/Guardian/ @nicechunk
+/docs/ @nicechunk
+/scripts/ @nicechunk
+/package.json @nicechunk
