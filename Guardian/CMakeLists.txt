@@ -105,3 +105,7 @@ add_test(NAME aoi_test COMMAND aoi_test)
 add_executable(protocol_test tests/protocol_test.cpp)
 target_link_libraries(protocol_test PRIVATE nicechunk_guardian_core)
 add_test(NAME protocol_test COMMAND protocol_test)
+
+add_executable(load_test tests/load_test.cpp)
+target_link_libraries(load_test PRIVATE nicechunk_guardian_core)
+add_test(NAME load_test COMMAND load_test)

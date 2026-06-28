@@ -43,6 +43,8 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
+The CTest suite includes `range_test`, `aoi_test`, `protocol_test`, and `load_test`. `load_test` is the deterministic Guardian core load audit described in `../docs/guardian-load-audit.md`.
+
 If uWebSockets is already checked out:
 
 ```bash
