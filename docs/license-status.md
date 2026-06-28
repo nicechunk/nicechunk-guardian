@@ -1,16 +1,18 @@
 # nicechunk-guardian License Status
 
-nicechunk-guardian does not currently publish a public open-source license file.
+nicechunk-guardian is licensed under the Apache License, Version 2.0.
 
-This is an intentional release-status marker, not an implicit grant of rights. Until the project owner chooses and commits a license, external reviewers should treat this repository as source-available for inspection only.
+This split repository is generated from the main NiceChunk working tree. The project owner has selected Apache-2.0 as the default license for all generated NiceChunk repositories.
 
-## What This Means
+## Repository License
 
-- Do not assume permission to copy, redistribute, relicense, package, or deploy this code outside explicit written permission from the project owner.
-- Do not add a license file in a drive-by contribution or automated cleanup.
-- Do not mark this repository as open source until a license file is committed by the project owner.
-- Keep dependency licenses reviewable through package lockfiles and upstream package metadata where package files exist.
+- Root license file: `LICENSE`
+- Notice file: `NOTICE`
+- SPDX identifier: `Apache-2.0`
+- Package metadata, where present: `license: "Apache-2.0"`
 
-## Owner Decision Required
+## Scope
 
-Before a public open-source release, the owner should choose whether nicechunk-guardian uses the same license as the wider NiceChunk repository set or needs repository-specific terms.
+Apache-2.0 applies to original NiceChunk source code, documentation, project configuration, and original project assets committed to this repository.
+
+Third-party dependencies and third-party sample assets keep their own upstream license terms. Review package metadata, lockfiles, attribution text, and asset manifests before redistributing bundled assets outside the project.
