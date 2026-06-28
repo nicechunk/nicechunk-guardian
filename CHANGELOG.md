@@ -24,6 +24,13 @@ NiceChunk Guardian realtime service.
 - Apache-2.0 license metadata is included in `LICENSE`, `NOTICE`, and `docs/license-status.md`.
 - CI workflow publication is documented in `docs/ci-workflow-spec.md` and remains pending credentials with `workflow` scope.
 
+### Source Anchors
+
+Fill these fields before publishing a release note:
+
+- Main-tree commit: `<main NiceChunk working tree commit>`
+- Split repository commit: `<split repository commit>`
+
 ### Release Evidence Checklist
 
 Before publishing a release note for this split, cite:
