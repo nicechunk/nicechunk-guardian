@@ -205,7 +205,7 @@ void print_startup_guide(const char *program_name) {
     << "  --help                     Show this guide.\n"
     << "\n"
     << "For this test node:\n"
-    << "  " << bin << " --config ./config/guardian.example.conf --host 0.0.0.0 --port 8080 --public-url wss://guardian.101.32.242.209.sslip.io/ws\n"
+    << "  " << bin << " --config ./config/guardian.example.conf --host 0.0.0.0 --port 8080 --public-url wss://guardian.203.0.113.10.sslip.io/ws\n"
     << "\n"
     << "If port 8080 is already in use, stop the system service first:\n"
     << "  sudo systemctl stop nicechunk-guardian\n";

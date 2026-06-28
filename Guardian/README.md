@@ -94,7 +94,7 @@ Custom port:
 ```bash
 ./build/nicechunk-guardian \
   --port 18080 \
-  --public-url ws://1.2.3.4:18080/ws
+  --public-url ws://203.0.113.10:18080/ws
 ```
 
 Custom region:
@@ -129,7 +129,7 @@ Guardian nodes should expose their own endpoint. NiceChunk clients must use the 
 
 ```text
 wss://guardian.node-owner.com/ws
-wss://guardian.1.2.3.4.sslip.io/ws
+wss://guardian.203.0.113.10.sslip.io/ws
 wss://node-owner.example:8443/ws
 ```
 
@@ -168,7 +168,7 @@ Then start Guardian behind the local reverse proxy:
   --no-tui
 ```
 
-`sslip.io` risk: it is a third-party wildcard DNS service. It is useful for quick tests because `guardian.1.2.3.4.sslip.io` resolves to `1.2.3.4`, but production nodes should prefer their own domain. If `sslip.io` has downtime, changes policy, is blocked by a network, or has DNS issues, clients cannot resolve the node. It also gives the node no brand control and makes long-term registry/trust management weaker than a domain owned by the operator.
+`sslip.io` risk: it is a third-party wildcard DNS service. It is useful for quick tests because `guardian.203.0.113.10.sslip.io` resolves to `203.0.113.10`, but production nodes should prefer their own domain. If `sslip.io` has downtime, changes policy, is blocked by a network, or has DNS issues, clients cannot resolve the node. It also gives the node no brand control and makes long-term registry/trust management weaker than a domain owned by the operator.
 
 ## Binary Protocol
 
