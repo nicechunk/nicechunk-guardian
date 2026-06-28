@@ -193,7 +193,7 @@ The region can then be registered by another guardian.
 Initialize registry:
 
 ```bash
-PAYER_KEYPAIR=.deploy/phantom-keypair.json \
+PAYER_KEYPAIR=/path/to/devnet-payer.json \
 NCK_MINT=HSnWF5kjkWVrceW2SaSskScuLveUZE4gpthZ2ZXRPQPo \
 npm run guardian:init-registry
 ```

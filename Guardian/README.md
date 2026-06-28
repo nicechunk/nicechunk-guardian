@@ -121,7 +121,7 @@ sudo setcap 'cap_net_bind_service=+ep' ./build/nicechunk-guardian
   --key /etc/letsencrypt/live/guardian-a.nicechunk.com/privkey.pem
 ```
 
-Recommended production setup is reverse proxy TLS on 443 and Guardian on local 8080. See [deploy/nginx.conf](deploy/nginx.conf) and [deploy/Caddyfile](deploy/Caddyfile).
+Recommended production setup is reverse proxy TLS on 443 and Guardian on local 8080. Keep reverse-proxy configuration in a private operations repository or local machine configuration, not in this public source tree.
 
 ### Node-Owned WSS
 
