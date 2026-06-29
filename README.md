@@ -4,6 +4,10 @@
 
 Realtime Guardian server for multiplayer area ownership and world events.
 
+## Official Links
+
+GitHub: [https://github.com/nicechunk/nicechunk-guardian](https://github.com/nicechunk/nicechunk-guardian)
+
 ## Project Overview
 
 This repository contains the C++ Guardian service. Guardian is the realtime server component that handles local player presence, movement messages, dig events, chat, AOI behavior, and service-region boundaries.
