@@ -19,13 +19,16 @@
 #include <string_view>
 #include <termios.h>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <unistd.h>
 
 namespace nc {
 namespace {
 
 constexpr std::string_view kHeartbeatTopic = "__nicechunk_guardian_heartbeat";
+constexpr std::string_view kBuildingManifestTopic = "__nicechunk_guardian_buildings";
 
 class TuiInput {
 public:
@@ -186,12 +189,24 @@ void handle_hello(Ws<SSL> *ws, GuardianState &state, std::string_view message, c
   ack.service_radius_chunks = state.config().service_radius_chunks;
   ack.aoi_radius_chunks = state.config().player_aoi_radius_chunks;
   ack.chunk_index_mode = 1;
+  ack.server_flags = kServerFlagEquipmentSync | kServerFlagDigBatch | kServerFlagBuildingManifest;
   send_binary(ws, encode_hello_ack(ack));
+  send_binary(ws, encode_building_region_digest(state.building_digest()));
 
   std::vector<PlayerJoin> snapshot;
   state.collect_snapshot(player, snapshot);
   for (const auto &join : snapshot) {
     send_binary(ws, encode_player_join(join));
+  }
+  std::vector<EquipmentEvent> equipment_snapshot;
+  state.collect_equipment_snapshot(player, equipment_snapshot);
+  for (const auto &equipment : equipment_snapshot) {
+    send_binary(ws, encode_equipment_event(equipment));
+  }
+  std::vector<PlayerIdentity> identity_snapshot;
+  state.collect_identity_snapshot(player, identity_snapshot);
+  for (const auto &identity : identity_snapshot) {
+    send_binary(ws, encode_player_identity(identity));
   }
 
   state.add_log("Player #" + std::to_string(player->local_player_id) + " connected in chunk (" +
@@ -254,6 +269,13 @@ void handle_move(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
       [&](std::string_view topic, std::string_view payload) {
         ws->publish(topic, payload, uWS::OpCode::BINARY, false);
       });
+    if (player->has_equipment) {
+      auto equipment_payload = encode_equipment_event(state.make_equipment_event(*player));
+      state.publish_to_aoi(new_chunk_x, new_chunk_z, equipment_payload,
+        [&](std::string_view topic, std::string_view payload) {
+          ws->publish(topic, payload, uWS::OpCode::BINARY, false);
+        });
+    }
     state.add_log("Player #" + std::to_string(player->local_player_id) + " entered chunk (" +
                   std::to_string(new_chunk_x) + "," + std::to_string(new_chunk_z) + ")");
   }
@@ -307,6 +329,81 @@ void handle_dig(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
 }
 
 template <bool SSL>
+void handle_dig_batch(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
+  Player *player = ws->getUserData()->player;
+  if (!player || !player->connected || !state.is_active_player(player)) {
+    close_with_error(ws, ERROR_NOT_HELLO);
+    return;
+  }
+  std::vector<Dig> digs;
+  if (!decode_dig_batch(message, digs)) {
+    close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);
+    return;
+  }
+  uint64_t t = now_ms();
+  if (!rate_limit_allow(t, player->dig_window_ms, player->dig_count, state.config().client_dig_rate_limit_per_sec)) {
+    send_error(ws, ERROR_RATE_LIMIT);
+    return;
+  }
+
+  struct PendingDigEvent {
+    int32_t chunk_x = 0;
+    int32_t chunk_z = 0;
+    DigEvent event;
+  };
+  std::vector<PendingDigEvent> events;
+  events.reserve(digs.size());
+  for (const Dig &dig : digs) {
+    if (!state.accept_dig_seq(player, dig.seq)) {
+      send_error(ws, ERROR_BAD_DIG_SEQ);
+      return;
+    }
+    int32_t dig_chunk_x = 0;
+    int32_t dig_chunk_z = 0;
+    if (!state.local_to_global(dig.local_chunk_x, dig.local_chunk_z, dig_chunk_x, dig_chunk_z)) {
+      state.add_log("Rejected DIG batch: target out of Guardian range");
+      close_with_error(ws, ERROR_OUT_OF_RANGE);
+      return;
+    }
+    int32_t dx = dig_chunk_x - player->current_chunk_x;
+    int32_t dz = dig_chunk_z - player->current_chunk_z;
+    if (dx < -2 || dx > 2 || dz < -2 || dz > 2) {
+      state.add_log("Rejected DIG batch: target too far from player");
+      send_error(ws, ERROR_OUT_OF_RANGE);
+      return;
+    }
+    events.push_back(PendingDigEvent{dig_chunk_x, dig_chunk_z, state.make_dig_event(*player, dig)});
+  }
+
+  std::unordered_map<std::string, std::vector<DigEvent>> batches;
+  batches.reserve(events.size() * state.config().player_aoi_chunks);
+  for (const auto &pending : events) {
+    for (int32_t dz = -state.config().player_aoi_radius_chunks; dz <= state.config().player_aoi_radius_chunks; ++dz) {
+      for (int32_t dx = -state.config().player_aoi_radius_chunks; dx <= state.config().player_aoi_radius_chunks; ++dx) {
+        int32_t x = pending.chunk_x + dx;
+        int32_t z = pending.chunk_z + dz;
+        if (!contains_chunk(state.config(), x, z)) continue;
+        batches[state.topic_for_chunk(x, z)].push_back(pending.event);
+      }
+    }
+  }
+
+  for (auto &[topic, items] : batches) {
+    size_t offset = 0;
+    while (offset < items.size()) {
+      size_t count = std::min<size_t>(255, items.size() - offset);
+      auto payload = encode_dig_event_batch(player->local_player_id, state.server_tick(), items.data() + offset, count);
+      ws->publish(topic, payload, uWS::OpCode::BINARY, false);
+      state.metrics().messages_out += 1;
+      state.metrics().bytes_out += payload.size();
+      offset += count;
+    }
+  }
+  state.metrics().dig_in += digs.size();
+  state.metrics().bytes_in += message.size();
+}
+
+template <bool SSL>
 void handle_chat(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
   Player *player = ws->getUserData()->player;
   if (!player || !player->connected || !state.is_active_player(player)) {
@@ -328,6 +425,120 @@ void handle_chat(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
     [&](std::string_view topic, std::string_view bytes) {
       ws->publish(topic, bytes, uWS::OpCode::BINARY, false);
     });
+  state.metrics().bytes_in += message.size();
+}
+
+template <bool SSL>
+void handle_player_identity(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
+  Player *player = ws->getUserData()->player;
+  if (!player || !player->connected || !state.is_active_player(player)) {
+    close_with_error(ws, ERROR_NOT_HELLO);
+    return;
+  }
+  PlayerIdentity identity;
+  if (!decode_player_identity(message, identity)) {
+    close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);
+    return;
+  }
+  state.update_player_identity(player, identity, now_ms());
+  auto payload = encode_player_identity(state.make_identity(*player));
+  state.publish_to_aoi(player->current_chunk_x, player->current_chunk_z, payload,
+    [&](std::string_view topic, std::string_view bytes) {
+      ws->publish(topic, bytes, uWS::OpCode::BINARY, false);
+    });
+  state.metrics().bytes_in += message.size();
+}
+
+template <bool SSL>
+void handle_equipment(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
+  Player *player = ws->getUserData()->player;
+  if (!player || !player->connected || !state.is_active_player(player)) {
+    close_with_error(ws, ERROR_NOT_HELLO);
+    return;
+  }
+  Equipment equipment;
+  if (!decode_equipment(message, equipment)) {
+    close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);
+    return;
+  }
+  if (equipment.right_hand_kind > EQUIPMENT_FORGED) {
+    close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);
+    return;
+  }
+  uint64_t t = now_ms();
+  if (!rate_limit_allow(t, player->equipment_window_ms, player->equipment_count, state.config().client_equipment_rate_limit_per_sec)) {
+    send_error(ws, ERROR_RATE_LIMIT);
+    return;
+  }
+  state.update_player_equipment(player, equipment, t);
+  auto payload = encode_equipment_event(state.make_equipment_event(*player));
+  state.publish_to_aoi(player->current_chunk_x, player->current_chunk_z, payload,
+    [&](std::string_view topic, std::string_view bytes) {
+      ws->publish(topic, bytes, uWS::OpCode::BINARY, false);
+    });
+  state.metrics().bytes_in += message.size();
+}
+
+template <bool SSL>
+void handle_building_manifest_request(Ws<SSL> *ws, GuardianState &state, std::string_view message) {
+  Player *player = ws->getUserData()->player;
+  if (!player || !player->connected || !state.is_active_player(player)) {
+    close_with_error(ws, ERROR_NOT_HELLO);
+    return;
+  }
+  BuildingManifestRequest request;
+  if (!decode_building_manifest_request(message, request)) {
+    close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);
+    return;
+  }
+  const auto digest = state.building_digest();
+  if (request.known_revision == digest.revision) {
+    const auto payload = encode_building_region_digest(digest);
+    send_binary(ws, payload);
+    state.metrics().messages_out += 1;
+    state.metrics().bytes_out += payload.size();
+  } else {
+    for (const auto &page : state.building_manifest_pages()) {
+      send_binary(ws, page);
+      state.metrics().messages_out += 1;
+      state.metrics().bytes_out += page.size();
+    }
+  }
+  state.metrics().bytes_in += message.size();
+}
+
+template <bool SSL>
+void handle_building_announce(
+  Ws<SSL> *ws,
+  GuardianState &state,
+  std::string_view message,
+  const GuardianState::PublishFn &publish) {
+  Player *player = ws->getUserData()->player;
+  if (!player || !player->connected || !state.is_active_player(player)) {
+    close_with_error(ws, ERROR_NOT_HELLO);
+    return;
+  }
+  BuildingRecord record;
+  if (!decode_building_announce(message, record)) {
+    close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);
+    return;
+  }
+  const uint64_t t = now_ms();
+  if (!rate_limit_allow(
+      t,
+      player->building_window_ms,
+      player->building_count,
+      state.config().client_building_announce_rate_limit_per_sec)) {
+    send_error(ws, ERROR_RATE_LIMIT);
+    return;
+  }
+  if (state.upsert_building(record)) {
+    const auto payload = encode_building_region_digest(state.building_digest());
+    publish(kBuildingManifestTopic, payload);
+    state.add_log("Building manifest changed by player #" + std::to_string(player->local_player_id));
+  } else {
+    send_binary(ws, encode_building_region_digest(state.building_digest()));
+  }
   state.metrics().bytes_in += message.size();
 }
 
@@ -361,6 +572,29 @@ void reap_stale_sockets(GuardianState &state) {
 template <bool SSL, typename AppT>
 void install_routes(AppT &app, GuardianState &state) {
   const Config &cfg = state.config();
+  app.options("/buildings", [](auto *res, auto *) {
+    res->writeStatus("204 No Content")
+      ->writeHeader("Access-Control-Allow-Origin", "*")
+      ->writeHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+      ->writeHeader("Access-Control-Allow-Headers", "If-None-Match")
+      ->end();
+  });
+  app.get("/buildings", [&state](auto *res, auto *req) {
+    const std::string etag = state.building_manifest_etag();
+    const bool not_modified = req->getHeader("if-none-match") == etag;
+    if (not_modified) res->writeStatus("304 Not Modified");
+    res->writeHeader("Access-Control-Allow-Origin", "*")
+      ->writeHeader("Access-Control-Expose-Headers", "ETag")
+      ->writeHeader("Cache-Control", "public, max-age=0, must-revalidate")
+      ->writeHeader("ETag", etag);
+    if (not_modified) {
+      res->end();
+      return;
+    }
+    const std::string body = state.building_manifest_binary();
+    res->writeHeader("Content-Type", "application/octet-stream")
+      ->end(body);
+  });
   app.template ws<PerSocketData>(cfg.path, {
     .compression = uWS::DISABLED,
     .maxPayloadLength = cfg.max_payload_length,
@@ -373,6 +607,7 @@ void install_routes(AppT &app, GuardianState &state) {
       ws->getUserData()->opened_ms = now_ms();
       SocketRegistry<SSL>::sockets.insert(ws);
       ws->subscribe(kHeartbeatTopic);
+      ws->subscribe(kBuildingManifestTopic);
       state.metrics().connections += 1;
     },
     .message = [&app, &state](Ws<SSL> *ws, std::string_view message, uWS::OpCode opCode) {
@@ -406,8 +641,25 @@ void install_routes(AppT &app, GuardianState &state) {
         case MSG_DIG:
           handle_dig(ws, state, message);
           break;
+        case MSG_DIG_BATCH:
+          handle_dig_batch(ws, state, message);
+          break;
         case MSG_CHAT:
           handle_chat(ws, state, message);
+          break;
+        case MSG_PLAYER_IDENTITY:
+          handle_player_identity(ws, state, message);
+          break;
+        case MSG_EQUIPMENT:
+          handle_equipment(ws, state, message);
+          break;
+        case MSG_BUILDING_MANIFEST_REQUEST:
+          handle_building_manifest_request(ws, state, message);
+          break;
+        case MSG_BUILDING_ANNOUNCE:
+          handle_building_announce(ws, state, message, [&](std::string_view topic, std::string_view payload) {
+            app.publish(topic, payload, uWS::OpCode::BINARY, false);
+          });
           break;
         case MSG_PONG:
           if (!decode_pong(message)) close_with_error(ws, ERROR_BAD_PAYLOAD_LENGTH);

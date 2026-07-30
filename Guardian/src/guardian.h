@@ -11,6 +11,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -60,6 +61,7 @@ public:
   const Config &config() const { return cfg_; }
   Metrics &metrics() { return metrics_; }
   const Metrics &metrics() const { return metrics_; }
+  uint16_t server_tick() const { return server_tick_; }
 
   bool can_accept_player() const;
   Player *create_player(const Hello &hello, uint64_t now_ms);
@@ -75,17 +77,29 @@ public:
 
   bool move_player_chunk(Player *player, int32_t chunk_x, int32_t chunk_z);
   void update_player_move(Player *player, const Move &move, uint64_t now_ms);
+  void update_player_equipment(Player *player, const Equipment &equipment, uint64_t now_ms);
+  void update_player_identity(Player *player, const PlayerIdentity &identity, uint64_t now_ms);
   bool accept_dig_seq(Player *player, uint16_t seq);
 
   PlayerJoin make_join(const Player &player) const;
   PlayerLeave make_leave(const Player &player, uint8_t reason) const;
   MoveItem make_move_item(const Player &player) const;
   DigEvent make_dig_event(const Player &player, const Dig &dig) const;
+  EquipmentEvent make_equipment_event(const Player &player) const;
+  PlayerIdentity make_identity(const Player &player) const;
 
   using PublishFn = std::function<void(std::string_view, std::string_view)>;
   void publish_to_aoi(int32_t center_chunk_x, int32_t center_chunk_z, std::string_view payload, const PublishFn &publish);
   void flush_pending_moves(const PublishFn &publish);
   void collect_snapshot(Player *viewer, std::vector<PlayerJoin> &out) const;
+  void collect_equipment_snapshot(Player *viewer, std::vector<EquipmentEvent> &out) const;
+  void collect_identity_snapshot(Player *viewer, std::vector<PlayerIdentity> &out) const;
+
+  BuildingRegionDigest building_digest() const;
+  std::vector<std::string> building_manifest_pages() const;
+  std::string building_manifest_binary() const;
+  std::string building_manifest_etag() const;
+  bool upsert_building(const BuildingRecord &record);
 
   const std::string &topic_for_chunk(int32_t chunk_x, int32_t chunk_z) const;
   bool local_to_global(uint8_t local_x, uint8_t local_z, int32_t &chunk_x, int32_t &chunk_z) const;
@@ -110,9 +124,18 @@ private:
   uint8_t tui_section_ = 0;
   uint32_t tui_row_ = 0;
   double last_cpu_seconds_ = 0.0;
+  int32_t building_region_x_ = 0;
+  int32_t building_region_z_ = 0;
+  uint64_t building_revision_ = 0;
+  std::array<uint8_t, 16> building_hash_{};
+  std::map<uint64_t, BuildingRecord> building_records_;
 
   uint16_t allocate_player_id();
   StatsRates update_rates(uint64_t now_ms);
+  bool valid_building_record(const BuildingRecord &record) const;
+  void recompute_building_hash();
+  void load_building_manifest();
+  void save_building_manifest() const;
 };
 
 } // namespace nc

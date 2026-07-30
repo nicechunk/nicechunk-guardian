@@ -95,6 +95,10 @@ void apply_pair(Config &cfg, const std::string &key, const std::string &value) {
   else if (key == "movement_broadcast_hz") cfg.movement_broadcast_hz = (uint16_t)std::stoul(value);
   else if (key == "client_move_rate_limit_per_sec") cfg.client_move_rate_limit_per_sec = (uint16_t)std::stoul(value);
   else if (key == "client_dig_rate_limit_per_sec") cfg.client_dig_rate_limit_per_sec = (uint16_t)std::stoul(value);
+  else if (key == "client_equipment_rate_limit_per_sec") cfg.client_equipment_rate_limit_per_sec = (uint16_t)std::stoul(value);
+  else if (key == "client_building_announce_rate_limit_per_sec") cfg.client_building_announce_rate_limit_per_sec = (uint16_t)std::stoul(value);
+  else if (key == "max_building_records") cfg.max_building_records = (uint32_t)std::stoul(value);
+  else if (key == "building_manifest_file") cfg.building_manifest_file = value;
   else if (key == "max_payload_length") cfg.max_payload_length = (uint32_t)std::stoul(value);
   else if (key == "max_backpressure") cfg.max_backpressure = (uint32_t)std::stoul(value);
   else if (key == "close_on_backpressure_limit") cfg.close_on_backpressure_limit = parse_bool(value);
@@ -287,6 +291,10 @@ bool validate_config(const Config &cfg, std::string &error) {
   }
   if (cfg.max_players == 0 || cfg.max_players > 65535) {
     error = "protocol V1 requires 1 <= max_players <= 65535";
+    return false;
+  }
+  if (cfg.max_building_records == 0 || cfg.max_building_records > 1'000'000) {
+    error = "max_building_records must be between 1 and 1000000";
     return false;
   }
   if (cfg.service_radius_chunks > 127) {

@@ -9,6 +9,8 @@ option(GUARDIAN_BUILD_SERVER "Build the uWebSockets Guardian server" ON)
 option(GUARDIAN_FETCH_UWS "Fetch uWebSockets if UWS_SOURCE_DIR is not provided" ON)
 set(UWS_SOURCE_DIR "" CACHE PATH "Path to an existing uWebSockets checkout")
 
+find_package(OpenSSL REQUIRED)
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
@@ -35,10 +37,15 @@ set(GUARDIAN_CORE_SOURCES
 
 add_library(nicechunk_guardian_core STATIC ${GUARDIAN_CORE_SOURCES})
 target_include_directories(nicechunk_guardian_core PUBLIC src)
+target_link_libraries(nicechunk_guardian_core PUBLIC OpenSSL::Crypto)
 
 if(GUARDIAN_BUILD_SERVER)
-  find_package(OpenSSL REQUIRED)
   find_package(ZLIB REQUIRED)
+  if(TARGET OpenSSL::SSL AND TARGET OpenSSL::Crypto)
+    set(GUARDIAN_OPENSSL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+  else()
+    set(GUARDIAN_OPENSSL_LIBS ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
+  endif()
 
   include(FetchContent)
   if(NOT UWS_SOURCE_DIR)
@@ -77,7 +84,7 @@ if(GUARDIAN_BUILD_SERVER)
   add_library(usockets STATIC ${USOCKETS_SOURCES})
   target_compile_definitions(usockets PRIVATE LIBUS_USE_OPENSSL)
   target_include_directories(usockets PUBLIC "${USOCKETS_DIR}/src")
-  target_link_libraries(usockets PUBLIC OpenSSL::SSL OpenSSL::Crypto ZLIB::ZLIB)
+  target_link_libraries(usockets PUBLIC ${GUARDIAN_OPENSSL_LIBS} ZLIB::ZLIB)
 
   add_executable(nicechunk-guardian
     src/main.cpp
@@ -89,7 +96,7 @@ if(GUARDIAN_BUILD_SERVER)
     "${UWS_SOURCE_DIR}/src"
     "${USOCKETS_DIR}/src"
   )
-  target_link_libraries(nicechunk-guardian PRIVATE usockets OpenSSL::SSL OpenSSL::Crypto ZLIB::ZLIB)
+  target_link_libraries(nicechunk-guardian PRIVATE usockets ${GUARDIAN_OPENSSL_LIBS} ZLIB::ZLIB)
 endif()
 
 enable_testing()
@@ -105,6 +112,10 @@ add_test(NAME aoi_test COMMAND aoi_test)
 add_executable(protocol_test tests/protocol_test.cpp)
 target_link_libraries(protocol_test PRIVATE nicechunk_guardian_core)
 add_test(NAME protocol_test COMMAND protocol_test)
+
+add_executable(building_manifest_test tests/building_manifest_test.cpp)
+target_link_libraries(building_manifest_test PRIVATE nicechunk_guardian_core)
+add_test(NAME building_manifest_test COMMAND building_manifest_test)
 
 add_executable(load_test tests/load_test.cpp)
 target_link_libraries(load_test PRIVATE nicechunk_guardian_core)

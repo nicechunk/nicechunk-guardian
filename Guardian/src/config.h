@@ -25,7 +25,7 @@ struct Config {
   uint16_t player_aoi_chunks = 15;
   uint8_t player_aoi_radius_chunks = 7;
 
-  uint16_t chunk_size_blocks = 32;
+  uint16_t chunk_size_blocks = 16;
   uint16_t position_precision = 64;
 
   uint32_t max_connections = 50000;
@@ -35,6 +35,10 @@ struct Config {
   uint16_t movement_broadcast_hz = 20;
   uint16_t client_move_rate_limit_per_sec = 30;
   uint16_t client_dig_rate_limit_per_sec = 10;
+  uint16_t client_equipment_rate_limit_per_sec = 10;
+  uint16_t client_building_announce_rate_limit_per_sec = 4;
+  uint32_t max_building_records = 16384;
+  std::string building_manifest_file = "guardian-buildings.bin";
 
   uint32_t max_payload_length = 4096;
   uint32_t max_backpressure = 262144;

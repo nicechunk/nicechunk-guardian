@@ -8,7 +8,7 @@ Use GitHub issues for reproducible bugs, focused feature requests, and public do
 
 ## Security and Private Operations
 
-Do not post private keys, tokens, passwords, server IPs, deployment scripts, or machine-specific configuration in public issues. Send suspected vulnerabilities or leaks privately to the project owner and rotate exposed credentials before public discussion.
+Do not post private keys, tokens, passwords, server IPs, deployment scripts, machine-specific configuration, vulnerability details, or exploit evidence in public issues. Follow [SECURITY.md](SECURITY.md): use GitHub's private vulnerability report form only when GitHub shows that it is enabled. If it is unavailable, use the linked no-details coordination issue solely to request that the maintainer enable a verified private channel. Rotate exposed credentials before any public discussion.
 
 ## Repository Scope
 

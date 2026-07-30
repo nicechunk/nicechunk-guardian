@@ -6,15 +6,13 @@ This split repository is generated from the main NiceChunk working tree. The int
 
 ## Local Equivalent
 
-Reviewers should run the checks that exist in this split repository's `package.json`, if present. Common examples are:
+Reviewers should run the checks that exist in this split repository. For this repository, the local release-equivalent commands are:
 
 ~~~bash
-npm ci
-npm run audit:deps
-npm run build
+node scripts/split-github-repos.mjs
 ~~~
 
-Some split repositories are documentation, assets, or C++ service surfaces without npm build scripts. In those cases, use `SECURITY.md`, `CONTRIBUTING.md`, repository health files, and the main-tree release validation as the source of CI evidence.
+Some split repositories are documentation, assets, or C++ service surfaces without npm build scripts. In those cases, use `SECURITY.md`, `CONTRIBUTING.md`, repository health files, and the main-tree release validation as the source of CI evidence. If a command is optional or deferred because a local toolchain is unavailable, record that in the release evidence.
 
 ## Activation Rule
 

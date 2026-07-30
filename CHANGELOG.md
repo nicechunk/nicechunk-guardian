@@ -18,6 +18,7 @@ This repository is generated from the main NiceChunk working tree. Make source c
 
 NiceChunk Guardian realtime service.
 
+
 ### Current Status
 
 - Generated from the main NiceChunk working tree.
@@ -33,12 +34,10 @@ Fill these fields before publishing a release note:
 
 ### Release Evidence Checklist
 
-Before publishing a release note for this split, cite:
+Before publishing a release note for this split, cite the commands that apply to this repository:
 
 ~~~bash
-npm run validate:repo
-npm run audit:split-remotes
-npm run audit:maturity
+node scripts/split-github-repos.mjs
 ~~~
 
-If this split contains `package.json`, also run the relevant local scripts such as `npm run audit:deps`, `npm run audit:licenses`, `npm run build`, or the split-specific `validate:release` script when present.
+If a listed command is deferred because a local toolchain is unavailable, record that explicitly with the exact missing command or binary.

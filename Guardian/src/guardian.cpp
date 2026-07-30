@@ -1,9 +1,13 @@
 #include "guardian.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <openssl/evp.h>
 #include <sstream>
+#include <stdexcept>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <unordered_map>
@@ -33,9 +37,74 @@ uint64_t fingerprint_wallet(const std::array<uint8_t, 32> &wallet) {
   return hash ? hash : 1ull;
 }
 
+int32_t floor_div(int32_t value, int32_t divisor) {
+  int32_t quotient = value / divisor;
+  int32_t remainder = value % divisor;
+  return remainder < 0 ? quotient - 1 : quotient;
+}
+
+void append_u16(std::string &out, uint16_t value) {
+  out.push_back((char)(value & 0xff));
+  out.push_back((char)((value >> 8) & 0xff));
+}
+
+void append_u32(std::string &out, uint32_t value) {
+  for (int shift = 0; shift < 32; shift += 8) out.push_back((char)((value >> shift) & 0xff));
+}
+
+void append_u64(std::string &out, uint64_t value) {
+  for (int shift = 0; shift < 64; shift += 8) out.push_back((char)((value >> shift) & 0xff));
+}
+
+uint16_t read_u16(const uint8_t *data) {
+  return (uint16_t)data[0] | (uint16_t)(data[1] << 8);
+}
+
+uint32_t read_u32(const uint8_t *data) {
+  return (uint32_t)data[0] | ((uint32_t)data[1] << 8) | ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+}
+
+uint64_t read_u64(const uint8_t *data) {
+  uint64_t value = 0;
+  for (int index = 7; index >= 0; --index) value = (value << 8) | data[index];
+  return value;
+}
+
+bool building_rectangles_overlap(const BuildingRecord &left, const BuildingRecord &right) {
+  const int64_t left_max_x = (int64_t)left.min_x + left.width - 1;
+  const int64_t left_max_z = (int64_t)left.min_z + left.depth - 1;
+  const int64_t right_max_x = (int64_t)right.min_x + right.width - 1;
+  const int64_t right_max_z = (int64_t)right.min_z + right.depth - 1;
+  return (int64_t)left.min_x <= right_max_x && left_max_x >= right.min_x
+    && (int64_t)left.min_z <= right_max_z && left_max_z >= right.min_z;
+}
+
+bool building_record_is_newer(const BuildingRecord &next, const BuildingRecord &previous) {
+  if (next.updated_slot != 0 || previous.updated_slot != 0) {
+    return next.updated_slot > previous.updated_slot;
+  }
+  return next.active_revision > previous.active_revision;
+}
+
+std::string hash_hex(const std::array<uint8_t, 16> &hash) {
+  static constexpr char kHex[] = "0123456789abcdef";
+  std::string out;
+  out.reserve(34);
+  out.push_back('"');
+  for (uint8_t value : hash) {
+    out.push_back(kHex[value >> 4]);
+    out.push_back(kHex[value & 0x0f]);
+  }
+  out.push_back('"');
+  return out;
+}
+
 } // namespace
 
 GuardianState::GuardianState(Config cfg) : cfg_(std::move(cfg)), aoi_offsets_(build_aoi_offsets(cfg_.player_aoi_radius_chunks)) {
+  building_region_x_ = floor_div(cfg_.guardian_center_chunk_x, 100);
+  building_region_z_ = floor_div(cfg_.guardian_center_chunk_z, 100);
+  load_building_manifest();
   uint32_t diameter = (uint32_t)cfg_.service_radius_chunks * 2u + 1u;
   topics_.reserve((size_t)diameter * diameter);
   for (uint32_t i = 0; i < diameter * diameter; ++i) {
@@ -74,12 +143,226 @@ Player *GuardianState::create_player(const Hello &hello, uint64_t t_ms) {
   player->last_seen_ms = t_ms;
   player->move_window_ms = t_ms;
   player->dig_window_ms = t_ms;
+  player->equipment_window_ms = t_ms;
+  player->building_window_ms = t_ms;
 
   Player *raw = player.get();
   players_.emplace(id, std::move(player));
   add_player_to_room(raw, get_or_create_room(hello.start_chunk_x, hello.start_chunk_z));
   metrics_.players = players_.size();
   return raw;
+}
+
+BuildingRegionDigest GuardianState::building_digest() const {
+  BuildingRegionDigest digest;
+  digest.region_x = building_region_x_;
+  digest.region_z = building_region_z_;
+  digest.revision = building_revision_;
+  digest.record_count = (uint32_t)building_records_.size();
+  digest.hash = building_hash_;
+  return digest;
+}
+
+std::vector<std::string> GuardianState::building_manifest_pages() const {
+  std::vector<BuildingRecord> records;
+  records.reserve(building_records_.size());
+  for (const auto &[id, record] : building_records_) {
+    (void)id;
+    records.push_back(record);
+  }
+  const size_t page_count_value = std::max<size_t>(1, (records.size() + kBuildingManifestPageRecords - 1) / kBuildingManifestPageRecords);
+  const uint16_t page_count = (uint16_t)std::min<size_t>(page_count_value, 65535);
+  std::vector<std::string> pages;
+  pages.reserve(page_count);
+  const auto digest = building_digest();
+  for (uint16_t page = 0; page < page_count; ++page) {
+    const size_t start = (size_t)page * kBuildingManifestPageRecords;
+    const size_t count = start < records.size()
+      ? std::min(kBuildingManifestPageRecords, records.size() - start)
+      : 0;
+    pages.push_back(encode_building_manifest_page(
+      digest,
+      page,
+      page_count,
+      count ? records.data() + start : nullptr,
+      count));
+  }
+  return pages;
+}
+
+std::string GuardianState::building_manifest_binary() const {
+  std::string out;
+  out.reserve(48 + building_records_.size() * kBuildingRecordSize);
+  out.append("NCKBRG03", 8);
+  append_u16(out, 3);
+  append_u16(out, (uint16_t)kBuildingRecordSize);
+  append_u32(out, (uint32_t)building_region_x_);
+  append_u32(out, (uint32_t)building_region_z_);
+  append_u64(out, building_revision_);
+  append_u32(out, (uint32_t)building_records_.size());
+  out.append(reinterpret_cast<const char *>(building_hash_.data()), building_hash_.size());
+  for (const auto &[id, record] : building_records_) {
+    (void)id;
+    append_building_record(out, record);
+  }
+  return out;
+}
+
+std::string GuardianState::building_manifest_etag() const {
+  return hash_hex(building_hash_);
+}
+
+bool GuardianState::upsert_building(const BuildingRecord &record) {
+  const auto found = building_records_.find(record.foundation_id);
+  if (record.foundation_id == 0 || (record.flags != 0u && record.flags != 1u)) return false;
+  if (record.flags == 0u) {
+    if (found == building_records_.end() || !building_record_is_newer(record, found->second)) return false;
+    building_records_.erase(found);
+    building_revision_ = building_revision_ == UINT64_MAX ? 1 : building_revision_ + 1;
+    recompute_building_hash();
+    save_building_manifest();
+    return true;
+  }
+  if (!valid_building_record(record)) return false;
+  if (found != building_records_.end()) {
+    const BuildingRecord &previous = found->second;
+    if (!building_record_is_newer(record, previous)) return false;
+    for (const auto &[id, existing] : building_records_) {
+      if (id != record.foundation_id && building_rectangles_overlap(existing, record)) return false;
+    }
+    found->second = record;
+  } else {
+    if (building_records_.size() >= cfg_.max_building_records) return false;
+    for (const auto &[id, existing] : building_records_) {
+      (void)id;
+      if (building_rectangles_overlap(existing, record)) return false;
+    }
+    building_records_.emplace(record.foundation_id, record);
+  }
+  building_revision_ = building_revision_ == UINT64_MAX ? 1 : building_revision_ + 1;
+  recompute_building_hash();
+  save_building_manifest();
+  return true;
+}
+
+bool GuardianState::valid_building_record(const BuildingRecord &record) const {
+  if (record.foundation_id == 0 || record.flags != 1u || record.width < 2 || record.depth < 2) return false;
+  const bool zero_hash = std::all_of(record.content_hash.begin(), record.content_hash.end(), [](uint8_t value) {
+    return value == 0;
+  });
+  if ((record.active_revision == 0) != zero_hash) return false;
+  const int64_t max_x = (int64_t)record.min_x + (int64_t)record.width - 1;
+  const int64_t max_z = (int64_t)record.min_z + (int64_t)record.depth - 1;
+  if (max_x > INT32_MAX || max_z > INT32_MAX) return false;
+  const int64_t region_min_chunk_x = (int64_t)building_region_x_ * 100;
+  const int64_t region_min_chunk_z = (int64_t)building_region_z_ * 100;
+  const int64_t region_min_x = region_min_chunk_x * cfg_.chunk_size_blocks;
+  const int64_t region_min_z = region_min_chunk_z * cfg_.chunk_size_blocks;
+  const int64_t region_max_x = (region_min_chunk_x + 100) * cfg_.chunk_size_blocks - 1;
+  const int64_t region_max_z = (region_min_chunk_z + 100) * cfg_.chunk_size_blocks - 1;
+  return record.min_x <= region_max_x && max_x >= region_min_x
+    && record.min_z <= region_max_z && max_z >= region_min_z;
+}
+
+void GuardianState::recompute_building_hash() {
+  EVP_MD_CTX *context = EVP_MD_CTX_new();
+  if (!context || EVP_DigestInit_ex(context, EVP_sha256(), nullptr) != 1) {
+    EVP_MD_CTX_free(context);
+    throw std::runtime_error("Unable to initialize Guardian building SHA-256");
+  }
+  for (const auto &[id, record] : building_records_) {
+    (void)id;
+    std::string packed;
+    packed.reserve(kBuildingRecordSize);
+    append_building_record(packed, record);
+    if (EVP_DigestUpdate(context, packed.data(), packed.size()) != 1) {
+      EVP_MD_CTX_free(context);
+      throw std::runtime_error("Unable to hash Guardian building manifest");
+    }
+  }
+  std::array<uint8_t, EVP_MAX_MD_SIZE> digest{};
+  unsigned int digest_len = 0;
+  if (EVP_DigestFinal_ex(context, digest.data(), &digest_len) != 1 || digest_len < building_hash_.size()) {
+    EVP_MD_CTX_free(context);
+    throw std::runtime_error("Unable to finalize Guardian building SHA-256");
+  }
+  EVP_MD_CTX_free(context);
+  std::copy_n(digest.begin(), building_hash_.size(), building_hash_.begin());
+}
+
+void GuardianState::load_building_manifest() {
+  if (cfg_.building_manifest_file.empty()) {
+    recompute_building_hash();
+    return;
+  }
+  std::ifstream input(cfg_.building_manifest_file, std::ios::binary);
+  if (!input) {
+    recompute_building_hash();
+    return;
+  }
+  std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const bool legacy = bytes.size() >= 48 && bytes.compare(0, 8, "NCKBRG01") == 0;
+  const bool version_two = bytes.size() >= 48 && bytes.compare(0, 8, "NCKBRG02") == 0;
+  const bool current = bytes.size() >= 48 && bytes.compare(0, 8, "NCKBRG03") == 0;
+  if (!legacy && !version_two && !current) {
+    recompute_building_hash();
+    return;
+  }
+  const auto *data = reinterpret_cast<const uint8_t *>(bytes.data());
+  const uint16_t version = read_u16(data + 8);
+  const uint16_t record_size = read_u16(data + 10);
+  const int32_t region_x = (int32_t)read_u32(data + 12);
+  const int32_t region_z = (int32_t)read_u32(data + 16);
+  const uint64_t revision = read_u64(data + 20);
+  const uint32_t count = read_u32(data + 28);
+  const size_t expected_record_size = legacy ? kLegacyBuildingRecordSize : kBuildingRecordSize;
+  const uint16_t expected_version = legacy ? 1 : version_two ? 2 : 3;
+  if (version != expected_version || record_size != expected_record_size
+    || region_x != building_region_x_ || region_z != building_region_z_
+    || count > cfg_.max_building_records
+    || bytes.size() != 48 + (size_t)count * expected_record_size) {
+    recompute_building_hash();
+    return;
+  }
+  std::map<uint64_t, BuildingRecord> loaded;
+  for (uint32_t index = 0; index < count; ++index) {
+    BuildingRecord record;
+    if (!decode_building_record(std::string_view(bytes).substr(
+        48 + (size_t)index * expected_record_size,
+        expected_record_size), record)
+      || !valid_building_record(record)) {
+      loaded.clear();
+      break;
+    }
+    for (const auto &[id, existing] : loaded) {
+      (void)id;
+      if (building_rectangles_overlap(existing, record)) {
+        loaded.clear();
+        break;
+      }
+    }
+    if (loaded.empty() && index != 0) break;
+    loaded[record.foundation_id] = record;
+  }
+  const bool loaded_manifest = loaded.size() == count;
+  if (loaded_manifest) {
+    building_records_ = std::move(loaded);
+    building_revision_ = current ? revision : revision == UINT64_MAX ? 1 : revision + 1;
+  }
+  recompute_building_hash();
+  if (loaded_manifest && !current) save_building_manifest();
+}
+
+void GuardianState::save_building_manifest() const {
+  if (cfg_.building_manifest_file.empty()) return;
+  const std::string temporary = cfg_.building_manifest_file + ".tmp";
+  {
+    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+    const std::string bytes = building_manifest_binary();
+    output.write(bytes.data(), (std::streamsize)bytes.size());
+    if (!output) return;
+  }
+  std::rename(temporary.c_str(), cfg_.building_manifest_file.c_str());
 }
 
 void GuardianState::remove_player(Player *player) {
@@ -204,6 +487,24 @@ void GuardianState::update_player_move(Player *player, const Move &move, uint64_
   }
 }
 
+void GuardianState::update_player_equipment(Player *player, const Equipment &equipment, uint64_t t_ms) {
+  player->equipment_seq = equipment.seq;
+  player->equipment_right_hand_kind = equipment.right_hand_kind;
+  player->equipment_right_hand_variant = equipment.right_hand_variant;
+  player->equipment_flags = equipment.flags;
+  player->equipment_design_hash = equipment.design_hash;
+  player->equipment_payload.assign(equipment.payload.data(), equipment.payload.size());
+  player->has_equipment = true;
+  player->last_seen_ms = t_ms;
+}
+
+void GuardianState::update_player_identity(Player *player, const PlayerIdentity &identity, uint64_t t_ms) {
+  if (!player) return;
+  player->display_name.assign(identity.display_name.data(), identity.display_name.size());
+  player->has_identity = true;
+  player->last_seen_ms = t_ms;
+}
+
 bool GuardianState::accept_dig_seq(Player *player, uint16_t seq) {
   if (player->has_dig_seq && seq == player->last_dig_seq) return false;
   player->last_dig_seq = seq;
@@ -216,6 +517,7 @@ PlayerJoin GuardianState::make_join(const Player &player) const {
     player.local_player_id,
     player.owner_hash,
     player.owner_fingerprint,
+    player.wallet_pubkey,
     player.local_chunk_x,
     player.local_chunk_z,
     player.pos_x,
@@ -227,7 +529,7 @@ PlayerJoin GuardianState::make_join(const Player &player) const {
 }
 
 PlayerLeave GuardianState::make_leave(const Player &player, uint8_t reason) const {
-  return PlayerLeave{player.local_player_id, reason, player.owner_hash, player.owner_fingerprint};
+  return PlayerLeave{player.local_player_id, reason, player.owner_hash, player.owner_fingerprint, player.wallet_pubkey};
 }
 
 MoveItem GuardianState::make_move_item(const Player &player) const {
@@ -254,6 +556,26 @@ DigEvent GuardianState::make_dig_event(const Player &player, const Dig &dig) con
     dig.block_z,
     dig.action,
     server_tick_,
+  };
+}
+
+EquipmentEvent GuardianState::make_equipment_event(const Player &player) const {
+  return EquipmentEvent{
+    player.local_player_id,
+    player.equipment_seq,
+    player.equipment_right_hand_kind,
+    player.equipment_right_hand_variant,
+    player.equipment_flags,
+    player.equipment_design_hash,
+    player.equipment_payload,
+  };
+}
+
+PlayerIdentity GuardianState::make_identity(const Player &player) const {
+  return PlayerIdentity{
+    player.local_player_id,
+    player.wallet_pubkey,
+    player.display_name,
   };
 }
 
@@ -311,6 +633,34 @@ void GuardianState::collect_snapshot(Player *viewer, std::vector<PlayerJoin> &ou
     for (Player *other : it->second->players) {
       if (!other->has_pose) continue;
       if (cfg_.echo_self || other != viewer) out.push_back(make_join(*other));
+    }
+  }
+}
+
+void GuardianState::collect_equipment_snapshot(Player *viewer, std::vector<EquipmentEvent> &out) const {
+  for (const auto &offset : aoi_offsets_) {
+    int32_t x = viewer->current_chunk_x + offset.dx;
+    int32_t z = viewer->current_chunk_z + offset.dz;
+    if (!contains_chunk(cfg_, x, z)) continue;
+    auto it = rooms_.find(chunk_key(x, z));
+    if (it == rooms_.end()) continue;
+    for (Player *other : it->second->players) {
+      if (!other->has_pose || !other->has_equipment) continue;
+      if (cfg_.echo_self || other != viewer) out.push_back(make_equipment_event(*other));
+    }
+  }
+}
+
+void GuardianState::collect_identity_snapshot(Player *viewer, std::vector<PlayerIdentity> &out) const {
+  for (const auto &offset : aoi_offsets_) {
+    int32_t x = viewer->current_chunk_x + offset.dx;
+    int32_t z = viewer->current_chunk_z + offset.dz;
+    if (!contains_chunk(cfg_, x, z)) continue;
+    auto it = rooms_.find(chunk_key(x, z));
+    if (it == rooms_.end()) continue;
+    for (Player *other : it->second->players) {
+      if (!other->has_pose || !other->has_identity) continue;
+      if (cfg_.echo_self || other != viewer) out.push_back(make_identity(*other));
     }
   }
 }

@@ -15,4 +15,4 @@ This split repository is generated from the main NiceChunk working tree. The pro
 
 Apache-2.0 applies to original NiceChunk source code, documentation, project configuration, and original project assets committed to this repository.
 
-Third-party dependencies and third-party sample assets keep their own upstream license terms. Review package metadata, lockfiles, attribution text, and asset manifests before redistributing bundled assets outside the project.
+Third-party dependencies and third-party sample assets keep their own upstream license terms. Review dependency metadata, lockfiles, attribution text, and asset manifests before redistributing bundled assets outside the project.

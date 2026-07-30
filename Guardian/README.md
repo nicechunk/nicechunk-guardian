@@ -191,10 +191,16 @@ Message types:
 - `0x21` `DIG_EVENT`
 - `0x30` `PLAYER_JOIN`
 - `0x31` `PLAYER_LEAVE`
+- `0x40` `CHAT`
+- `0x41` `CHAT_EVENT`
+- `0x42` `EQUIPMENT`
+- `0x43` `EQUIPMENT_EVENT`
 
 High-frequency movement uses local chunk indexes, fixed-point positions, `uint16_t` local player IDs, and batched `MOVE_BATCH` frames. The default V1 service radius must be `<= 127` so a local chunk coordinate fits in `uint8_t`.
 
-`PLAYER_JOIN` and `PLAYER_LEAVE` include a wallet-derived owner fingerprint so clients can remove stale avatars immediately when the same wallet reconnects. `MOVE_BATCH` intentionally stays compact and does not carry wallet identity.
+`PLAYER_JOIN` and `PLAYER_LEAVE` include a wallet-derived owner fingerprint plus the full 32-byte wallet public key. Clients use the compact fingerprint for stale-avatar cleanup and the full public key to fetch the player's on-chain appearance PDA. `MOVE_BATCH` intentionally stays compact and does not carry wallet identity.
+
+Equipment sync is separate from movement. Clients send `EQUIPMENT` when the visible equipped state changes, and Guardian relays `EQUIPMENT_EVENT` to the same AOI as movement. V1 equipment state covers visible right-hand equipment, a backpack-equipped flag, a compact equipped-slot payload, and optional equipped forged-item appearance bytes. Guardian never relays backpack slot contents.
 
 ## Broadcast Model
 
